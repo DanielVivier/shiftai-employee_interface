@@ -1,4 +1,4 @@
-import { StreamingTextResponse, StreamData, streamText } from 'ai'
+import { createDataStreamResponse, streamText } from 'ai'
 import { waitUntil } from '@vercel/functions'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
@@ -93,32 +93,33 @@ ${employee.system_prompt}
 Always respond as ${employee.name}. Be professional, helpful, and stay in character.`
 
   // 7. Stream response — send conversationId as first data event
-  const streamData = new StreamData()
-  streamData.append({ conversationId })
+  return createDataStreamResponse({
+    execute: (dataStream) => {
+      dataStream.writeData({ conversationId })
 
-  const result = await streamText({
-    model: getProvider(employee.model),
-    system: systemPrompt,
-    messages,
+      const result = streamText({
+        model: getProvider(employee.model),
+        system: systemPrompt,
+        messages,
+        onFinish: ({ text }) => {
+          // 8. Persist assistant message — waitUntil keeps lambda alive after response
+          if (text) {
+            waitUntil(
+              adminClient.from('messages').insert({
+                conversation_id: conversationId,
+                role: 'assistant',
+                content: text,
+              })
+            )
+          }
+        },
+      })
+
+      result.mergeIntoDataStream(dataStream)
+    },
+    onError: (error) => {
+      console.error('[/api/chat] stream error:', error)
+      return 'An error occurred. Please try again.'
+    },
   })
-
-  return new StreamingTextResponse(
-    result.toAIStream({
-      onFinal: (fullText) => {
-        streamData.close()
-        // 8. Persist assistant message — waitUntil keeps lambda alive after response
-        if (fullText) {
-          waitUntil(
-            adminClient.from('messages').insert({
-              conversation_id: conversationId,
-              role: 'assistant',
-              content: fullText,
-            })
-          )
-        }
-      },
-    }),
-    {},
-    streamData
-  )
 }
