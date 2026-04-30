@@ -1,66 +1,48 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase-admin'
+import EmployeeCard from '@/components/EmployeeCard'
 
-export default function Home() {
+export default async function HomePage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect('/login')
+  }
+
+  const adminClient = createAdminClient()
+
+  // Get this client's employees via their email
+  const { data: employees } = await adminClient
+    .from('ai_employees')
+    .select('*, clients!inner(email)')
+    .eq('clients.email', user.email)
+    .order('created_at', { ascending: true })
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="home-page">
+      <header className="home-header">
+        <div className="home-header-inner">
+          <span className="home-logo">ShiftAI</span>
+          <span className="home-subtitle">Your AI Employee Team</span>
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+      </header>
+
+      <main className="home-main">
+        {!employees || employees.length === 0 ? (
+          <div className="empty-state">
+            <p>Your AI employees are being configured.</p>
+            <p className="empty-hint">Contact your ShiftAI account manager to get started.</p>
+          </div>
+        ) : (
+          <div className="employee-grid">
+            {employees.map((employee) => (
+              <EmployeeCard key={employee.id} employee={employee} />
+            ))}
+          </div>
+        )}
       </main>
     </div>
-  );
+  )
 }
