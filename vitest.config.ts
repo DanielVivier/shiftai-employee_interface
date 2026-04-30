@@ -7,9 +7,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    environmentMatchGlobs: [
-      ['**/*.component.test.{ts,tsx}', 'jsdom'],
-    ],
   },
   resolve: {
     alias: {
