@@ -109,7 +109,7 @@ Always respond as ${employee.name}. Be professional, helpful, and stay in charac
                 conversation_id: conversationId,
                 role: 'assistant',
                 content: text,
-              })
+              }).then()
             )
           }
         },
