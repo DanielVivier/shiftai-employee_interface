@@ -1,4 +1,4 @@
-import { createDataStreamResponse, streamText } from 'ai'
+import { StreamingTextResponse, StreamData, streamText } from 'ai'
 import { waitUntil } from '@vercel/functions'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
@@ -92,41 +92,33 @@ ${employee.system_prompt}
 
 Always respond as ${employee.name}. Be professional, helpful, and stay in character.`
 
-  // 7. Stream response with in-band conversationId delivery
-  return createDataStreamResponse({
-    execute: async (dataStream) => {
-      // Send conversationId as first data event so client can persist it
-      dataStream.writeData({ conversationId })
+  // 7. Stream response — send conversationId as first data event
+  const streamData = new StreamData()
+  streamData.append({ conversationId })
 
-      const result = await streamText({
-        model: getProvider(employee.model),
-        system: systemPrompt,
-        messages,
-        ...(employee.model.startsWith('claude-') ? {
-          providerOptions: {
-            anthropic: { cacheControl: true },
-          },
-        } : {}),
-      })
+  const result = await streamText({
+    model: getProvider(employee.model),
+    system: systemPrompt,
+    messages,
+  })
 
-      result.mergeIntoDataStream(dataStream)
-
-      // 8. Persist assistant message after stream completes — waitUntil keeps lambda alive
-      waitUntil(
-        result.text.then(async (fullText) => {
-          if (fullText) {
-            await adminClient.from('messages').insert({
+  return new StreamingTextResponse(
+    result.toAIStream({
+      onFinal: (fullText) => {
+        streamData.close()
+        // 8. Persist assistant message — waitUntil keeps lambda alive after response
+        if (fullText) {
+          waitUntil(
+            adminClient.from('messages').insert({
               conversation_id: conversationId,
               role: 'assistant',
               content: fullText,
             })
-          }
-        })
-      )
-    },
-    onError: (error) => {
-      console.error('[/api/chat] stream error:', error)
-      return 'An error occurred. Please try again.'
-    },
-  })
+          )
+        }
+      },
+    }),
+    {},
+    streamData
+  )
 }
