@@ -105,11 +105,13 @@ Always respond as ${employee.name}. Be professional, helpful, and stay in charac
           // 8. Persist assistant message — waitUntil keeps lambda alive after response
           if (text) {
             waitUntil(
-              adminClient.from('messages').insert({
-                conversation_id: conversationId,
-                role: 'assistant',
-                content: text,
-              }).then()
+              Promise.resolve(
+                adminClient.from('messages').insert({
+                  conversation_id: conversationId,
+                  role: 'assistant',
+                  content: text,
+                })
+              )
             )
           }
         },
