@@ -72,7 +72,7 @@ export default function EmployeeView({ employee }: EmployeeViewProps) {
     loadHistory()
   }, [employee.id])
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, data } =
+  const { messages, input, handleInputChange, handleSubmit, append, isLoading, data } =
     useChat({
       id: employee.id,
       initialMessages,
@@ -99,10 +99,7 @@ export default function EmployeeView({ employee }: EmployeeViewProps) {
   }, [messages])
 
   function sendQuickAction(prompt: string) {
-    const syntheticEvent = {
-      preventDefault: () => {},
-    } as React.FormEvent<HTMLFormElement>
-    handleSubmit(syntheticEvent, { data: { overrideInput: prompt } })
+    append({ role: 'user', content: prompt })
   }
 
   if (!historyLoaded) {
